@@ -1,0 +1,69 @@
+name: COMP-ART Autograding Tests
+on:
+  push:
+  workflow_dispatch:
+  repository_dispatch:
+permissions:
+  checks: write
+  actions: read
+  contents: read
+jobs:
+  run-autograding-tests:
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-classroom[bot]'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Test 1: Check if sketch.js file exists
+      - name: Check sketch.js exists
+        uses: classroom-resources/autograding-io-grader@v1
+        id: sketch-exists
+        continue-on-error: true
+        with:
+          test-name: "sketch.js file exists"
+          command: "test -f sketch.js && echo 'PASS: sketch.js found'"
+          expected-output: "PASS: sketch.js found"
+          comparison-method: exact
+          timeout: 10
+          max-score: 0
+
+      # Test 2: Check if student has modified sketch.js (not empty/template)
+      - name: Check sketch.js is not empty
+        uses: classroom-resources/autograding-io-grader@v1
+        id: sketch-modified
+        continue-on-error: true
+        with:
+          test-name: "sketch.js has been modified"
+          command: "if [ $(wc -l < sketch.js) -gt 0 ]; then echo 'PASS: File has content'; else echo 'FAIL: File is empty'; fi"
+          expected-output: "PASS: File has content"
+          comparison-method: exact
+          timeout: 10
+          max-score: 0
+
+      # Final scoring: 1 point if all tests pass, 0 if any fail
+      - name: Calculate final score
+        uses: classroom-resources/autograding-io-grader@v1
+        id: final-score
+        continue-on-error: true
+        with:
+          test-name: "Overall submission score"
+          command: |
+            if [ "${{ steps.sketch-exists.outcome }}" = "success" ] && [ "${{ steps.sketch-modified.outcome }}" = "success" ]; then
+              echo "PASS: All requirements met - 1 point awarded"
+            else
+              echo "FAIL: Not all requirements met - 0 points"
+            fi
+          expected-output: "PASS: All requirements met - 1 point awarded"
+          comparison-method: exact
+          timeout: 10
+          max-score: 1
+
+      - name: Autograding Reporter
+        uses: classroom-resources/autograding-grading-reporter@v1
+        env:
+          SKETCH-EXISTS_RESULTS: "${{ steps.sketch-exists.outputs.result }}"
+          SKETCH-MODIFIED_RESULTS: "${{ steps.sketch-modified.outputs.result }}"
+          FINAL-SCORE_RESULTS: "${{ steps.final-score.outputs.result }}"
+        with:
+          runners: sketch-exists,sketch-modified,final-score
